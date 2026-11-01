@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Body Monitoring | Interaktiver 28-Wochen Gewichtsmonitor</title>
+  <meta name="description" content="Interaktive Gewichtsüberwachung mit 28-Wochen-Prognose, Szenarienvergleich (0.5kg, 0.75kg Ziel 80kg, 1.0kg), Morgen- & Abendanalysen und Echtzeit-Tracking.">
+  
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Chart.js, Hammer.js, Chart.js Zoom Plugin and SheetJS for Excel export -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Favicon & Stylesheet -->
+  <link rel="icon" type="image/png" href="StudioPicaso_Logo.png">
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Critical Inline Styles: Slate Gray #94a3b8 for Sun & Moon icons in Übersicht Table -->
+  <style>
+    .time-tag {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      width: 24px !important;
+      height: 22px !important;
+      min-width: 24px !important;
+      border-radius: 4px !important;
+      padding: 0 !important;
+      box-sizing: border-box !important;
+      background: var(--bg-elevated) !important;
+      color: #94a3b8 !important;
+      border: 1px solid var(--border-subtle) !important;
+      box-shadow: none !important;
+    }
+    .time-tag:hover {
+      background: var(--bg-card-hover) !important;
+      color: var(--text-main) !important;
+      border-color: rgba(255, 255, 255, 0.2) !important;
+    }
+    .time-tag svg,
+    .time-tag .lineart-icon,
+    .time-tag svg * {
+      stroke: #94a3b8 !important;
+      color: #94a3b8 !important;
+      fill: none !important;
+    }
+    .time-tag:hover svg,
+    .time-tag:hover .lineart-icon,
+    .time-tag:hover svg * {
+      stroke: var(--text-main) !important;
+      color: var(--text-main) !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Top Navigation & Brand Header -->
+    <header class="glass-panel app-header">
+      <div class="header-brand">
+        <img src="StudioPicaso_Logo.png" alt="Studio Picaso Logo" class="brand-logo">
+        <div class="brand-titles">
+          <h1>Body Monitoring</h1>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div id="storageStatusBadge" class="storage-status-badge" title="Automatische Speicherung in lokalem Speicher &amp; Datenbank">
+          <span class="status-dot"></span>
+          <span id="storageStatusText">Auto-Save aktiv</span>
+        </div>
+
+        <div id="dropboxSyncBadge" class="storage-status-badge badge-dropbox" title="Dropbox Synchronisationsstatus für andere Computer">
+          <span class="status-dot"></span>
+          <span id="dropboxSyncText">Dropbox prüfen...</span>
+        </div>
+
+        <button id="saveToDataJsBtn" class="btn btn-accent btn-sm" title="Aktualisiert die Datei 'data.js' im Dropbox-Ordner, damit alle Änderungen auf deinen anderen Computern verfügbar sind">
+          <svg class="lineart-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
+            <path d="M12 12v9"/>
+            <path d="m8 17 4 4 4-4"/>
+          </svg>
+          In Dropbox (data.js) speichern
+        </button>
+
+        <!-- Direkter Gewichtseinheiten-Umrechner (kg ⇄ lb, ohne Popup) -->
+        <div class="header-unit-converter" title="Direkter Gewichtsumrechner (kg ⇄ lb)">
+          <div class="conv-inline-input-wrap">
+            <input type="number" id="inlineConvKg" class="conv-inline-input" step="0.1" min="0" placeholder="kg" aria-label="Kilogramm (kg)">
+            <span class="conv-inline-unit">kg</span>
+          </div>
+          <span class="conv-inline-arrow">⇄</span>
+          <div class="conv-inline-input-wrap">
+            <input type="number" id="inlineConvLb" class="conv-inline-input" step="0.1" min="0" placeholder="lb" aria-label="Pfund (lb)">
+            <span class="conv-inline-unit">lb</span>
+          </div>
+        </div>
+
+        <button id="backupJsonBtn" class="btn btn-secondary btn-sm" title="Alle Gewichtsdaten als Sicherungsdatei herunterladen">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+          Sicherung
+        </button>
+
+        <button id="exportXlsxBtn" class="btn btn-secondary" title="Als Excel Tabelle herunterladen">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Excel (.xlsx)
+        </button>
+      </div>
+    </header>
+
+    <!-- Top KPI Cards -->
+    <section class="kpi-grid">
+      <!-- Quick Action Card: Direkte Schnelleingabe (ohne Popup, automatische Tageszeit) -->
+      <div class="glass-panel kpi-card kpi-action-card" id="kpiAddCard" style="--card-accent: var(--accent-cyan);" title="Direkte Schnelleingabe">
+        <div class="kpi-top">
+          <span class="kpi-label" style="color: var(--accent-cyan); font-weight: 700;">Schnelleingabe</span>
+          <div class="kpi-icon" style="background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Inline Weight Input Row -->
+        <div class="inline-quick-input-row">
+          <div class="inline-quick-input-wrap">
+            <input type="number" id="inlineQuickWeightInput" step="0.05" min="0" max="250" placeholder="0.00" class="inline-quick-weight-input" aria-label="Gewicht in kg">
+            <span class="inline-quick-unit">kg</span>
+          </div>
+          <button type="button" id="inlineQuickSaveBtn" class="btn btn-primary inline-quick-save-btn" title="Gewicht direkt speichern (oder Enter drücken)">
+            Speichern
+          </button>
+        </div>
+
+        <!-- Footer: Date indicator & optional details link -->
+        <div class="inline-quick-footer">
+          <span id="quickSlotDateLabel" class="inline-quick-date-label">Heute</span>
+          <button type="button" id="openFullModalBtn" class="inline-quick-details-link" title="Erweiterte Erfassung öffnen (Mahlzeiten, Mobilität, anderes Datum)">+ Mahlzeiten</button>
+        </div>
+      </div>
+
+      <!-- Card 1: Aktuelles Gewicht -->
+      <div class="glass-panel kpi-card" style="--card-accent: var(--accent-emerald);">
+        <div class="kpi-top">
+          <span class="kpi-label">Aktuelles Gewicht</span>
+          <div class="kpi-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 12h.01M4 12h.01M12 4v.01M12 20v.01M7 7l.01.01M17 7l.01.01M7 17l.01.01M17 17l.01.01"/>
+              <circle cx="12" cy="12" r="8"/>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value-row">
+          <span id="kpiCurrentWeight" class="kpi-value">92.00</span>
+          <span class="kpi-unit">kg</span>
+        </div>
+        <div id="kpiTotalBadge" class="kpi-badge badge-success">
+          <span>↓</span> -1.70 kg verloren
+        </div>
+        <span id="kpiCurrentMeta" class="kpi-meta">Zuletzt: 30.09.2026 (Morgen)</span>
+      </div>
+
+      <!-- Card 2: Gesamtveränderung -->
+      <div class="glass-panel kpi-card" style="--card-accent: var(--accent-cyan);">
+        <div class="kpi-top">
+          <span class="kpi-label">Veränderung seit Start</span>
+          <div class="kpi-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+              <polyline points="17 6 23 6 23 12"/>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value-row">
+          <span id="kpiTotalChange" class="kpi-value">-1.70</span>
+          <span class="kpi-unit">kg</span>
+        </div>
+        <div id="kpiTargetBadge" class="kpi-badge badge-success">
+          <span>✓</span> Vor Zielplan B
+        </div>
+        <span class="kpi-meta">Startgewicht: 93.70 kg</span>
+      </div>
+
+      <!-- Card 3: Distanz zu Ziel B (80 kg) -->
+      <div class="glass-panel kpi-card" style="--card-accent: var(--accent-amber);">
+        <div class="kpi-top">
+          <span class="kpi-label">Distanz zum Ziel (80 kg)</span>
+          <div class="kpi-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <circle cx="12" cy="12" r="6"/>
+              <circle cx="12" cy="12" r="2"/>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value-row">
+          <span id="kpiRemaining" class="kpi-value">12.00</span>
+          <span class="kpi-unit">kg noch</span>
+        </div>
+        <div class="kpi-badge badge-warning">
+          <span>★</span> Hauptziel: 80.00 kg
+        </div>
+        <span class="kpi-meta">Geplant ab Woche 20 gehalten</span>
+      </div>
+
+      <!-- Card 4: Differenz zu 1 kg Prognose (Ziel A) -->
+      <div class="glass-panel kpi-card" id="kpiDiff1kgCard" style="--card-accent: #ef4444;">
+        <div class="kpi-top">
+          <span class="kpi-label">Diff. zu 1 kg Prognose</span>
+          <div class="kpi-icon" id="kpiDiff1kgIcon" style="background: rgba(239, 68, 68, 0.15); color: #ef4444;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="3" x2="12" y2="21"/>
+              <polyline points="8 7 12 3 16 7"/>
+              <polyline points="8 17 12 21 16 17"/>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value-row">
+          <span id="kpiDiff1kgValue" class="kpi-value">0.00</span>
+          <span class="kpi-unit">kg</span>
+        </div>
+        <div id="kpiDiff1kgBadge" class="kpi-badge badge-danger">
+          <span>Δ</span> Diff. wird berechnet
+        </div>
+        <span id="kpiDiff1kgMeta" class="kpi-meta">Heute vs. Ziel A (1.0 kg/Wo)</span>
+      </div>
+    </section>
+
+    <!-- Goal 80kg Progress Bar & Nebenschritte Tracker -->
+    <!-- Progress Tracking Section -->
+    <section class="glass-panel goal-progress-card">
+      <div class="progress-section-header">
+        <div class="progress-title">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+          <span>Fortschritt</span>
+        </div>
+      </div>
+
+      <!-- Nebenschritte Progress Rows (Szenario A, B & C) -->
+      <div id="substepsDisplayGrid" class="substeps-display-grid">
+        <!-- Populated dynamically by app.js -->
+      </div>
+    </section>
+
+    <!-- Main Chart Section -->
+    <section class="glass-panel chart-section" style="margin-bottom: 28px;">
+      <div class="chart-header">
+        <div class="chart-titles">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <h2>Verlauf</h2>
+            <div class="zoom-btn-group" role="group" aria-label="Zoom-Steuerung">
+              <button id="zoomInBtn" class="zoom-btn" title="Hineinzoomen (+)" aria-label="Zoom in">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              </button>
+              <button id="zoomOutBtn" class="zoom-btn" title="Herauszoomen (−)" aria-label="Zoom out">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              </button>
+            </div>
+            <button id="quickZoomBtn" class="btn btn-secondary btn-sm active" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 0.78rem;" title="Fokus auf eingetragene kg (5 kg Skala)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                <line x1="11" y1="8" x2="11" y2="14"/>
+                <line x1="8" y1="11" x2="14" y2="11"/>
+              </svg>
+              Eingetragene kg
+            </button>
+            <button id="resetZoomBtn" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 0.78rem;" title="Gesamtübersicht des Verlaufs (28 Wochen)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                <line x1="8" y1="11" x2="14" y2="11"/>
+              </svg>
+              Gesamtübersicht
+            </button>
+            <div class="zoom-goal-group" role="group" aria-label="Zoom max 80 kg Ziel">
+              <span class="zoom-goal-label">Max 80 kg:</span>
+              <div class="zoom-goal-pills">
+                <button type="button" class="zoom-goal-pill" id="zoomGoal10Btn" data-goal="1.0" title="Zoom bis 80 kg Ziel bei 1.0 kg/Woche (Woche 15 • 04.01.2027)">1 kg</button>
+                <button type="button" class="zoom-goal-pill" id="zoomGoal075Btn" data-goal="0.75" title="Zoom bis 80 kg Ziel bei 0.75 kg/Woche (Woche 20 • 08.02.2027)">0.75 kg</button>
+                <button type="button" class="zoom-goal-pill" id="zoomGoal05Btn" data-goal="0.5" title="Zoom bis 80 kg Ziel bei 0.5 kg/Woche (Woche 28 • 11.04.2027)">0.5 kg</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-controls">
+          <!-- Series Visibility Toggles -->
+          <div class="series-toggles">
+            <div class="toggle-chip active actual" data-series="actual">
+              <span class="dot"></span> Aktuell
+            </div>
+            <div class="toggle-chip active avg" data-series="avg" title="Ø Gleitender Durchschnitt der Messungen">
+              <span class="dot"></span> Ø Durchschnitt
+            </div>
+            <div class="toggle-chip active target-a" data-series="targetA">
+              <span class="dot"></span> A: 1.0 kg
+            </div>
+            <div class="toggle-chip active target-b" data-series="targetB">
+              <span class="dot"></span> B: 0.75 kg
+            </div>
+            <div class="toggle-chip active target-c" data-series="targetC">
+              <span class="dot"></span> C: 0.5 kg
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart Average & Loss per Measurement Stats Ribbon -->
+      <div id="chartAvgStatsBar" class="chart-avg-stats-bar"></div>
+
+      <div class="chart-canvas-wrapper">
+        <canvas id="weightChart"></canvas>
+      </div>
+    </section>
+
+
+    <!-- Full Interactive 28-Week Table -->
+    <section class="glass-panel table-section">
+      <div class="table-toolbar">
+        <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0;">Übersicht</h2>
+      </div>
+
+      <!-- Fast Week Selector Pills (1 - 28) -->
+      <div id="weekPillsContainer" class="week-selector-wrapper"></div>
+
+      <!-- Mobile Swipe Guide Hint (Nur auf Mobilgeräten sichtbar) -->
+      <div class="mobile-table-scroll-hint" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        <span>Tabelle wischen für alle 13 Spalten</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </div>
+
+      <!-- Responsive Table View -->
+      <div class="table-responsive">
+        <table class="weight-table">
+          <thead>
+            <tr>
+              <th title="Wochentag (MO, DI, MI, DO, FR, SA, SO)">Tag</th>
+              <th title="Datum">Datum</th>
+              <th title="Tageszeit (Morgen / Abend)">Zeit</th>
+              <th title="Plan-Woche (1 - 28)">Wo.</th>
+              <th class="col-target-a" title="Ziel A: 1.00 kg / Woche">A (1.0)</th>
+              <th class="col-target-b" title="Ziel B: 0.75 kg / Woche (Hauptziel)">B (0.75)</th>
+              <th class="col-target-c" title="Ziel C: 0.50 kg / Woche">C (0.5)</th>
+              <th class="col-actual" title="Aktuelles Gewicht (Ist) in kg">Akt. (kg)</th>
+              <th class="col-diff-1kg" title="Differenz zum 1kg-Schritt (Ziel A: 1.00 kg / Woche)">Δ 1 kg</th>
+              <th title="Differenz zum Vortag">Δ Tag</th>
+              <th title="Wöchentliche Differenz">Δ Wo.</th>
+              <th title="Mahlzeiten: M = Morgens | Sv = Snack Vormittag | Mi = Mittag | Sn = Snack Nachmittag | A = Abend | Sa = Snack Abend" style="white-space: nowrap;">Mahlz.</th>
+              <th title="Mobilität: ÖV = Öffentlicher Verkehr | V = Velo | H = Zu Hause (Homeoffice) | A = Auswärts" style="white-space: nowrap;">ÖV / V / H / A</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <!-- Dynamically populated rows -->
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; color: var(--text-muted); margin-top: 8px;">
+        <span id="tableCountNotice">392 Einträge</span>
+        <span>✓ Automatische Speicherung: Jeder Eintrag &amp; Klick wird sofort gesichert.</span>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Quick Add Modal -->
+  <div id="quickAddModal" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Eintrag &amp; Mahlzeiten erfassen</h3>
+        <button id="closeQuickAddBtn" class="btn-icon" style="width: 32px; height: 32px;" title="Schliessen">
+          <svg class="lineart-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Date selector -->
+      <div class="form-group">
+        <label class="form-label">Datum auswählen</label>
+        <select id="modalDateSelect" class="form-control" style="cursor: pointer;">
+          <!-- Options populated dynamically with (Heute) highlighting -->
+        </select>
+      </div>
+
+      <!-- Tageszeit selector -->
+      <div class="form-group">
+        <label class="form-label">Tageszeit</label>
+        <div class="radio-cards-group">
+          <label class="radio-card-label" id="labelRadioMorning">
+            <input type="radio" name="modalTime" id="modalRadioMorning" value="Morgen" checked>
+            <span>
+              <svg class="lineart-icon icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2"/>
+                <path d="M12 20v2"/>
+                <path d="m4.93 4.93 1.41 1.41"/>
+                <path d="m17.66 17.66 1.41 1.41"/>
+                <path d="M2 12h2"/>
+                <path d="M20 12h2"/>
+                <path d="m6.34 17.66-1.41 1.41"/>
+                <path d="m19.07 4.93-1.41 1.41"/>
+              </svg>
+              Morgen
+            </span>
+          </label>
+          <label class="radio-card-label" id="labelRadioEvening">
+            <input type="radio" name="modalTime" id="modalRadioEvening" value="Abend">
+            <span>
+              <svg class="lineart-icon icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+              Abend
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Mahlzeiten & Snacks erfassen -->
+      <div class="form-group">
+        <label class="form-label">Mahlzeiten &amp; Snacks</label>
+        <div class="modal-meals-grid">
+          <label class="meal-chip modal-meal-chip" id="modalChipBreakfast" title="Morgens gegessen">
+            <input type="checkbox" id="modalCbBreakfast">
+            <span class="meal-chip-box"></span>
+            <span>
+              <svg class="lineart-icon icon-meal" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 8h1a4 4 0 1 1 0 8h-1"/>
+                <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/>
+                <line x1="6" y1="2" x2="6" y2="4"/>
+                <line x1="10" y1="2" x2="10" y2="4"/>
+                <line x1="14" y1="2" x2="14" y2="4"/>
+              </svg>
+              Morgens
+            </span>
+          </label>
+          <label class="meal-chip modal-meal-chip" id="modalChipSnackMorning" title="Snacks Vormittag">
+            <input type="checkbox" id="modalCbSnackMorning">
+            <span class="meal-chip-box"></span>
+            <span>
+              <svg class="lineart-icon icon-meal" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"/>
+                <path d="M10 2c1 .5 2 2 2 5"/>
+              </svg>
+              Snack Vm.
+            </span>
+          </label>
+          <label class="meal-chip modal-meal-chip" id="modalChipLunch" title="Mittag gegessen">
+            <input type="checkbox" id="modalCbLunch">
+            <span class="meal-chip-box"></span>
+            <span>
+              <svg class="lineart-icon icon-meal" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 11h16a8 8 0 0 1-16 0Z"/>
+                <line x1="2" y1="11" x2="22" y2="11"/>
+                <path d="M12 4v4"/>
+                <path d="M8 5l1 3"/>
+                <path d="M16 5l-1 3"/>
+              </svg>
+              Mittag
+            </span>
+          </label>
+          <label class="meal-chip modal-meal-chip" id="modalChipSnackAfternoon" title="Snack Nachmittag">
+            <input type="checkbox" id="modalCbSnackAfternoon">
+            <span class="meal-chip-box"></span>
+            <span>
+              <svg class="lineart-icon icon-meal" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9"/>
+                <path d="M8.5 8.5v.01"/>
+                <path d="M15.5 8.5v.01"/>
+                <path d="M12 12v.01"/>
+                <path d="M9.5 15.5v.01"/>
+                <path d="M14.5 15.5v.01"/>
+              </svg>
+              Snack Nm.
+            </span>
+          </label>
+          <label class="meal-chip modal-meal-chip" id="modalChipDinner" title="Abend gegessen">
+            <input type="checkbox" id="modalCbDinner">
+            <span class="meal-chip-box"></span>
+            <span>
+              <svg class="lineart-icon icon-meal" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12h18a8 8 0 0 1-16 0Z"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M7 5c1 1 1 2 0 3"/>
+                <path d="M12 4c1 1 1 3 0 4"/>
+                <path d="M17 5c1 1 1 2 0 3"/>
+              </svg>
+              Abend
+            </span>
+          </label>
+          <label class="meal-chip modal-meal-chip" id="modalChipSnackEvening" title="Snack Abend">
+            <input type="checkbox" id="modalCbSnackEvening">
+            <span class="meal-chip-box"></span>
+            <span>
+              <svg class="lineart-icon icon-meal" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+                <path d="M19 3v4"/>
+                <path d="M21 5h-4"/>
+              </svg>
+              Snack Ab.
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Mobilität erfassen (ÖV / Velo / Zu Hause) -->
+      <div class="form-group">
+        <label class="form-label">Mobilität / Weg <span style="font-weight: 500; font-size: 0.72rem; text-transform: none; color: var(--text-muted);">(separat für Morgen &amp; Abend)</span></label>
+        <div class="modal-meals-grid">
+          <label class="meal-chip modal-meal-chip modal-mobility-chip chip-ov" id="modalChipOv" title="Öffentlicher Verkehr (ÖV)">
+            <input type="checkbox" id="modalCbOv">
+            <span class="meal-chip-box"></span>
+            <span>
+              <svg class="lineart-icon icon-transit" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="16" height="16" x="4" y="3" rx="2"/>
+                <path d="M4 11h16"/>
+                <path d="M12 3v8"/>
+                <path d="m8 19-2 3"/>
+                <path d="m16 19 2 3"/>
+                <circle cx="8" cy="15" r="1"/>
+                <circle cx="16" cy="15" r="1"/>
+              </svg>
+              ÖV
+            </span>
+          </label>
+          <label class="meal-chip modal-meal-chip modal-mobility-chip chip-velo" id="modalChipVelo" title="Velo / Fahrrad (V)">
+            <input type="checkbox" id="modalCbVelo">
+            <span class="meal-chip-box"></span>
+            <span>
+              <svg class="lineart-icon icon-bike" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="5.5" cy="17.5" r="3.5"/>
+                <circle cx="18.5" cy="17.5" r="3.5"/>
+                <circle cx="15" cy="5" r="1"/>
+                <path d="M12 17.5V14l-3-3 4-3 2 3h2"/>
+              </svg>
+              V (Velo)
+            </span>
+          </label>
+          <label class="meal-chip modal-meal-chip modal-mobility-chip chip-home" id="modalChipHome" title="Zu Hause / Homeoffice (H)">
+            <input type="checkbox" id="modalCbHome">
+            <span class="meal-chip-box"></span>
+            <span>
+              <svg class="lineart-icon icon-home" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+              H (Zu Hause)
+            </span>
+          </label>
+          <label class="meal-chip modal-meal-chip modal-mobility-chip chip-away" id="modalChipAway" title="Auswärts / Unterwegs (A)">
+            <input type="checkbox" id="modalCbAway">
+            <span class="meal-chip-box"></span>
+            <span>
+              <svg class="lineart-icon icon-away" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="20" height="14" x="2" y="7" rx="2" ry="2"/>
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+              </svg>
+              A (Auswärts)
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Big Stepper Numeric Input -->
+      <div class="form-group">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+          <label class="form-label" style="margin-bottom: 0;">Gewicht in kg <span style="font-weight: 500; font-size: 0.72rem; text-transform: none; color: var(--text-muted);">(optional, 0 = löschen)</span></label>
+          <span id="modalWeightLbsHint" style="font-size: 0.78rem; font-weight: 600; color: var(--accent-cyan); display: none;">≈ <span id="modalWeightLbsVal">0</span> lb</span>
+        </div>
+        <input type="number" id="modalWeightInput" step="0.05" min="0" max="300" class="weight-big-input" placeholder="z. B. 92.50 (oder 0 zum Löschen)">
+        
+        <!-- Stepper +/- buttons -->
+        <div class="stepper-btn-grid">
+          <button type="button" class="stepper-btn minus" data-delta="-0.5">-0.5 kg</button>
+          <button type="button" class="stepper-btn minus" data-delta="-0.1">-0.1 kg</button>
+          <button type="button" class="stepper-btn plus" data-delta="0.1">+0.1 kg</button>
+          <button type="button" class="stepper-btn plus" data-delta="0.5">+0.5 kg</button>
+        </div>
+
+        <!-- 0 kg / Löschen Action Button -->
+        <div style="margin-top: 8px;">
+          <button type="button" class="stepper-btn reset-zero" id="stepperZeroBtn" style="width: 100%; height: 34px; font-size: 0.82rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px;" title="Gewichtseintrag auf 0 kg setzen / Wert löschen">
+            <svg class="lineart-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18"/>
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+              <line x1="10" y1="11" x2="10" y2="17"/>
+              <line x1="14" y1="11" x2="14" y2="17"/>
+            </svg>
+            0 kg eintragen / Wert löschen
+          </button>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; margin-top: 28px;">
+        <button type="button" id="cancelQuickAddBtn" class="btn btn-secondary" style="flex: 1; justify-content: center;">
+          Abbrechen
+        </button>
+        <button type="button" id="saveQuickAddBtn" class="btn btn-primary" style="flex: 1.5; justify-content: center;">
+          Eintrag speichern
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Floating Mobile Quick Add Button (Nur auf Mobilgeräten <= 768px sichtbar) -->
+  <button id="mobileQuickAddFab" class="mobile-quick-add-fab" title="Gewicht erfassen" aria-label="Eintrag erfassen">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"/>
+      <line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    <span>Erfassen</span>
+  </button>
+
+  <!-- Script references -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+
+  <!-- Visual Watchdog: Garantiert Schiefergrau #94a3b8 für Morgen- & Abend-Icons in der Übersicht -->
+  <script>
+    (function() {
+      function enforceTimeIcons() {
+        var table = document.getElementById('tableBody');
+        if (!table) return;
+        var tags = table.querySelectorAll('.time-tag');
+        tags.forEach(function(tag) {
+          tag.style.setProperty('color', '#94a3b8', 'important');
+          tag.style.setProperty('background', 'var(--bg-elevated)', 'important');
+          tag.style.setProperty('border', '1px solid var(--border-subtle)', 'important');
+          tag.style.setProperty('box-shadow', 'none', 'important');
+          tag.style.setProperty('display', 'inline-flex', 'important');
+          tag.style.setProperty('align-items', 'center', 'important');
+          tag.style.setProperty('justify-content', 'center', 'important');
+          tag.style.setProperty('width', '24px', 'important');
+          tag.style.setProperty('height', '22px', 'important');
+          tag.style.setProperty('border-radius', '4px', 'important');
+          var svg = tag.querySelector('svg');
+          if (svg) {
+            svg.style.setProperty('stroke', '#94a3b8', 'important');
+            svg.style.setProperty('color', '#94a3b8', 'important');
+            svg.style.setProperty('fill', 'none', 'important');
+            svg.style.setProperty('display', 'block', 'important');
+            var circle = svg.querySelector('circle');
+            if (circle) {
+              circle.style.setProperty('fill', 'none', 'important');
+              circle.style.setProperty('stroke', '#94a3b8', 'important');
+            }
+            svg.querySelectorAll('path').forEach(function(p) {
+              p.style.setProperty('stroke', '#94a3b8', 'important');
+              p.style.setProperty('fill', 'none', 'important');
+            });
+          }
+        });
+      }
+
+      // Live Observer and Interval Check
+      var tbody = document.getElementById('tableBody');
+      if (tbody && window.MutationObserver) {
+        var obs = new MutationObserver(enforceTimeIcons);
+        obs.observe(tbody, { childList: true, subtree: true });
+      }
+      window.addEventListener('DOMContentLoaded', enforceTimeIcons);
+      window.addEventListener('load', enforceTimeIcons);
+      setInterval(enforceTimeIcons, 300);
+    })();
+  </script>
+</body>
+</html>
